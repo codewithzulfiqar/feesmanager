@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School Fees Management System (Local)</title>
+    <title>School Fees Management System</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Phosphor Icons -->
@@ -22,48 +22,52 @@
             body * { visibility: hidden; }
             #receipt-container, #receipt-container * { visibility: visible; }
             #receipt-container { 
-                position: fixed;
-                left: 0; 
-                top: 0; 
-                width: 100%; 
-                height: 100%;
-                margin: 0; 
-                padding: 0;
-                background: white;
-                display: block !important;
-                z-index: 9999;
+                position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+                margin: 0; padding: 0; background: white; display: block !important; z-index: 9999;
             }
-            .receipt-copy {
-                border: 2px solid #000;
-                padding: 20px;
-                margin: 20px;
-                page-break-inside: avoid;
-            }
-            .cut-line {
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                margin: 20px;
-                color: #666;
-                font-size: 12px;
-            }
-            .cut-line::before, .cut-line::after {
-                content: '';
-                flex: 1;
-                border-bottom: 2px dashed #000;
-            }
-            .cut-line span { padding: 0 10px; }
             .no-print { display: none !important; }
         }
         
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Login Overlay */
+        #login-overlay {
+            background-image: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 font-sans h-screen flex overflow-hidden">
 
+    <!-- Login Overlay -->
+    <div id="login-overlay" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 fade-in">
+            <div class="text-center mb-8">
+                <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="ph-fill ph-graduation-cap text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">Welcome Back</h2>
+                <p class="text-slate-500 text-sm">Sign in to manage your school</p>
+            </div>
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Username</label>
+                    <input type="text" id="login-username" required class="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="admin">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Password</label>
+                    <input type="password" id="login-password" required class="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
+                    Sign In
+                </button>
+                <p class="text-center text-xs text-slate-400 mt-4">Hint: Use admin / admin</p>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
-    <div id="toast" class="fixed top-4 right-4 z-50 p-4 rounded-lg shadow-xl flex items-center gap-2 transform transition-all duration-300 translate-x-full opacity-0 text-white font-medium">
+    <div id="toast" class="fixed top-4 right-4 z-[2000] p-4 rounded-lg shadow-xl flex items-center gap-2 transform transition-all duration-300 translate-x-full opacity-0 text-white font-medium">
         <i id="toast-icon" class="ph-bold ph-check-circle text-xl"></i>
         <span id="toast-message">Action successful</span>
     </div>
@@ -95,7 +99,7 @@
         </nav>
 
         <div class="p-4 border-t border-slate-800">
-            <button class="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors">
+            <button onclick="handleLogout()" class="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors">
                 <i class="ph ph-sign-out text-xl"></i> <span>Logout</span>
             </button>
         </div>
@@ -106,14 +110,11 @@
         <!-- Header -->
         <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 no-print">
             <div class="flex items-center gap-4">
-                <button onclick="toggleSidebar()" class="p-2 hover:bg-slate-100 rounded-md lg:hidden">
-                    <i class="ph ph-list text-xl"></i>
-                </button>
                 <h2 id="page-title" class="text-xl font-semibold text-slate-700 capitalize">Dashboard</h2>
             </div>
             <div class="flex items-center gap-2 text-slate-500">
                 <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">A</div>
-                <span>Admin</span>
+                <span class="font-medium">Administrator</span>
             </div>
         </header>
 
@@ -122,6 +123,37 @@
             
             <!-- Dashboard View -->
             <section id="view-dashboard" class="view-section fade-in">
+                <!-- Quick Actions Section -->
+                <div class="mb-8">
+                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <button onclick="openStudentModal()" class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group">
+                            <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <i class="ph-bold ph-user-plus text-xl"></i>
+                            </div>
+                            <span class="font-bold text-slate-700">Add Student</span>
+                        </button>
+                        <button onclick="nav('payments')" class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all group">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                <i class="ph-bold ph-hand-coins text-xl"></i>
+                            </div>
+                            <span class="font-bold text-slate-700">Collect Fee</span>
+                        </button>
+                        <button onclick="nav('fees')" class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-amber-300 hover:shadow-md transition-all group">
+                            <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                <i class="ph-bold ph-book-open text-xl"></i>
+                            </div>
+                            <span class="font-bold text-slate-700">View Ledger</span>
+                        </button>
+                        <button onclick="nav('reports')" class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-rose-300 hover:shadow-md transition-all group">
+                            <div class="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                                <i class="ph-bold ph-file-text text-xl"></i>
+                            </div>
+                            <span class="font-bold text-slate-700">Arrears List</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Stats Row -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500 flex items-center gap-4">
@@ -262,7 +294,7 @@
                         <i class="ph-bold ph-x"></i> Close
                     </button>
                     <div class="max-w-3xl mx-auto my-8">
-                        <div class="receipt-copy bg-white p-8 relative">
+                        <div class="receipt-copy bg-white p-8 relative border-2 border-slate-800">
                             <div class="absolute top-2 right-2 text-xs font-bold border border-slate-400 px-2 py-1 uppercase rounded bg-slate-100 text-slate-600">Student Copy</div>
                             <div class="text-center border-b-2 border-slate-800 pb-4 mb-6">
                                 <h2 class="text-3xl font-black text-slate-800 tracking-tight">FUTURE STAR ACADEMY</h2>
@@ -281,20 +313,6 @@
                                 <div class="flex justify-between"><span>Remaining Balance</span><span class="r-bal text-rose-600">Rs 0</span></div>
                             </div>
                             <div class="flex justify-between mt-12"><div class="border-t border-slate-300 w-32 text-center text-xs pt-1">Accountant</div><div class="text-xs text-slate-400 italic">Generated by School Manager</div></div>
-                        </div>
-                        <div class="cut-line"><span><i class="ph ph-scissors"></i> Cut Here</span></div>
-                        <!-- School Copy (Repeat of above) -->
-                        <div class="receipt-copy bg-white p-8 relative">
-                            <div class="absolute top-2 right-2 text-xs font-bold border border-slate-400 px-2 py-1 uppercase rounded bg-slate-100 text-slate-600">School Copy</div>
-                            <div class="text-center border-b-2 border-slate-800 pb-4 mb-6">
-                                <h2 class="text-3xl font-black text-slate-800 tracking-tight">FUTURE STAR ACADEMY</h2>
-                            </div>
-                            <div class="grid grid-cols-2 gap-8 text-sm mb-6">
-                                <div><span class="r-no font-mono font-bold">#000</span></div>
-                                <div class="text-right"><span class="r-month font-bold">JAN 2024</span></div>
-                            </div>
-                            <div class="flex justify-between mb-2 font-bold"><span class="r-name">Name</span><span class="r-class">Class</span></div>
-                            <div class="flex justify-between border-t pt-2"><span>Paid: <span class="r-paid">0</span></span><span>Bal: <span class="r-bal">0</span></span></div>
                         </div>
                         <div class="text-center mt-8 no-print">
                             <button onclick="window.print()" class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold shadow-lg">Print Receipts</button>
@@ -370,12 +388,42 @@
         let currentTab = 'dashboard';
         const today = new Date().toISOString().slice(0, 7);
         
-        window.onload = () => {
+        // LOGIN SYSTEM LOGIC
+        function handleLogin(e) {
+            e.preventDefault();
+            const u = document.getElementById('login-username').value;
+            const p = document.getElementById('login-password').value;
+            
+            if (u === 'admin' && p === 'admin') {
+                sessionStorage.setItem('sfms_logged_in', 'true');
+                document.getElementById('login-overlay').classList.add('hidden');
+                showToast("Welcome back, Admin!");
+                initApp();
+            } else {
+                showToast("Invalid credentials", true);
+            }
+        }
+
+        function handleLogout() {
+            sessionStorage.removeItem('sfms_logged_in');
+            location.reload();
+        }
+
+        function checkAuth() {
+            if (sessionStorage.getItem('sfms_logged_in') === 'true') {
+                document.getElementById('login-overlay').classList.add('hidden');
+                initApp();
+            }
+        }
+
+        function initApp() {
             document.getElementById('ledger-month').value = today;
             document.getElementById('pay-month').value = today;
             document.getElementById('report-month').value = today;
             nav('dashboard');
-        };
+        }
+
+        window.onload = checkAuth;
 
         function nav(tab) {
             currentTab = tab;
@@ -384,6 +432,9 @@
             if(activeBtn) activeBtn.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
             document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
             document.getElementById(`view-${tab}`).classList.remove('hidden');
+            
+            document.getElementById('page-title').innerText = tab;
+
             if(tab === 'dashboard') renderDashboard();
             if(tab === 'students') renderStudents();
             if(tab === 'fees') renderFees();
@@ -393,7 +444,7 @@
 
         function showToast(msg, isError = false) {
             const t = document.getElementById('toast');
-            t.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-xl flex items-center gap-2 transform transition-all duration-300 text-white font-medium ${isError ? 'bg-rose-600' : 'bg-emerald-600'}`;
+            t.className = `fixed top-4 right-4 z-[2000] p-4 rounded-lg shadow-xl flex items-center gap-2 transform transition-all duration-300 text-white font-medium ${isError ? 'bg-rose-600' : 'bg-emerald-600'}`;
             document.getElementById('toast-message').innerText = msg;
             t.classList.remove('translate-x-full', 'opacity-0');
             setTimeout(() => t.classList.add('translate-x-full', 'opacity-0'), 3000);
@@ -408,6 +459,33 @@
             document.getElementById('dash-collected').innerText = currentMonthRecords.reduce((a, b) => a + b.paid, 0);
             document.getElementById('dash-arrears').innerText = ld.reduce((a, b) => a + b.balance, 0);
             
+            // Render Recent Collections (NEW)
+            const recentBody = document.getElementById('recent-payments-body');
+            recentBody.innerHTML = '';
+            // Get all records where payment > 0, sort by most recent month/entry
+            const allPayments = ld.filter(l => l.paid > 0)
+                                 .sort((a, b) => b.month.localeCompare(a.month))
+                                 .slice(0, 10);
+            
+            if(allPayments.length === 0) {
+                recentBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-slate-400 italic">No payments recorded yet</td></tr>';
+            } else {
+                allPayments.forEach(p => {
+                    const s = st.find(x => x.id === p.studentId) || {name: 'Unknown'};
+                    recentBody.innerHTML += `
+                        <tr class="hover:bg-slate-50">
+                            <td class="py-3 px-2">
+                                <div class="font-bold text-slate-700">${s.name}</div>
+                                <div class="text-[10px] text-slate-400 uppercase font-bold">${p.month}</div>
+                            </td>
+                            <td class="py-3 px-2 text-right">
+                                <span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold">Rs ${p.paid}</span>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
             const classCounts = {};
             st.filter(s => s.status === 'Active').forEach(s => classCounts[s.className] = (classCounts[s.className] || 0) + 1);
             const classContainer = document.getElementById('class-stats-container');
@@ -424,7 +502,7 @@
             const tbody = document.getElementById('students-table-body');
             tbody.innerHTML = '';
             st.filter(s => s.name.toLowerCase().includes(q) || s.className.toLowerCase().includes(q)).forEach(s => {
-                tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4">${s.name}</td><td class="px-6 py-4">${s.fatherName}</td><td class="px-6 py-4">${s.className}</td><td class="px-6 py-4 font-mono">${s.monthlyFee}</td><td class="px-6 py-4">${s.status}</td><td class="px-6 py-4 text-center"><button onclick="editStudent('${s.id}')" class="text-indigo-600 mr-2">Edit</button><button onclick="deleteStudent('${s.id}')" class="text-rose-600">Del</button></td></tr>`;
+                tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4 font-medium">${s.name}</td><td class="px-6 py-4 text-slate-500">${s.fatherName}</td><td class="px-6 py-4">${s.className}</td><td class="px-6 py-4 font-mono">Rs ${s.monthlyFee}</td><td class="px-6 py-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${s.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}">${s.status}</span></td><td class="px-6 py-4 text-center"><button onclick="editStudent('${s.id}')" class="text-indigo-600 mr-2 hover:underline">Edit</button><button onclick="deleteStudent('${s.id}')" class="text-rose-600 hover:underline">Del</button></td></tr>`;
             });
         }
 
@@ -488,7 +566,7 @@
             tbody.innerHTML = '';
             ld.forEach(l => {
                 const student = st.find(s => s.id === l.studentId) || { name: '?', className: '?' };
-                tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4">${student.name} (${student.className})</td><td class="px-6 py-4">${l.payable}</td><td class="px-6 py-4">${l.paid}</td><td class="px-6 py-4 font-bold text-rose-600">${l.balance}</td><td class="px-6 py-4">${l.balance === 0 ? 'Paid' : 'Due'}</td></tr>`;
+                tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4 font-medium">${student.name} (${student.className})</td><td class="px-6 py-4">Rs ${l.payable}</td><td class="px-6 py-4">Rs ${l.paid}</td><td class="px-6 py-4 font-bold text-rose-600">Rs ${l.balance}</td><td class="px-6 py-4"><span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${l.balance === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${l.balance === 0 ? 'Paid' : 'Due'}</span></td></tr>`;
             });
         }
 
@@ -501,26 +579,20 @@
                 if(s.admissionDate.slice(0, 7) <= month) {
                     const existingRecord = ld.find(l => l.studentId === s.id && l.month === month);
                     if(!existingRecord) {
-                        // Calculate previous month's balance
                         const prevRecords = ld.filter(l => l.studentId === s.id && l.month < month);
                         const previousArrears = prevRecords.reduce((sum, r) => sum + r.balance, 0);
-                        
                         const totalPayable = s.monthlyFee + previousArrears;
                         
                         ld.push({ 
-                            id: `L-${s.id}-${month}`, 
-                            studentId: s.id, 
-                            month: month, 
-                            payable: totalPayable, 
-                            paid: 0, 
-                            balance: totalPayable 
+                            id: `L-${s.id}-${month}`, studentId: s.id, month: month, 
+                            payable: totalPayable, paid: 0, balance: totalPayable 
                         });
                     }
                 }
             });
             DB.setLedger(ld);
             renderFees();
-            showToast("Ledger Updated with Arrears");
+            showToast("Ledger Updated");
         }
 
         function initPaymentForm() {
@@ -558,29 +630,22 @@
             const st = DB.getStudents().find(s => s.id === sid);
             let idx = ld.findIndex(l => l.studentId === sid && l.month === month);
             
-            // If ledger doesn't exist for this month, generate it first
             if(idx === -1) {
                 const prevRecords = ld.filter(l => l.studentId === sid && l.month < month);
                 const previousArrears = prevRecords.reduce((sum, r) => sum + r.balance, 0);
                 const totalPayable = st.monthlyFee + previousArrears;
                 
                 ld.push({ 
-                    id: `L-${sid}-${month}`, 
-                    studentId: sid, 
-                    month: month, 
-                    payable: totalPayable, 
-                    paid: 0, 
-                    balance: totalPayable 
+                    id: `L-${sid}-${month}`, studentId: sid, month: month, 
+                    payable: totalPayable, paid: 0, balance: totalPayable 
                 });
                 idx = ld.length - 1;
             }
 
-            // OVERPAYMENT PROTECTION
             if (amt > ld[idx].balance) {
-                return showToast(`Warning: Receiving Rs ${amt} but only Rs ${ld[idx].balance} is due!`, true);
+                return showToast(`Warning: Due is Rs ${ld[idx].balance}`, true);
             }
             
-            // ACCEPT PAYMENT (Partial or Full)
             ld[idx].paid += amt;
             ld[idx].balance = ld[idx].payable - ld[idx].paid;
             DB.setLedger(ld);
@@ -594,11 +659,10 @@
             document.querySelectorAll('.r-paid').forEach(el => el.innerText = "Rs " + amt);
             document.querySelectorAll('.r-bal').forEach(el => el.innerText = "Rs " + ld[idx].balance);
 
-            // Show and Print
             document.getElementById('receipt-container').classList.remove('hidden');
             window.print();
             
-            showToast("Payment Processed Successfully");
+            showToast("Payment Processed");
             initPaymentForm();
         }
 
@@ -612,7 +676,7 @@
             tbody.innerHTML = '';
             st.filter(s => s.status === 'Active').forEach(s => {
                 const totalDue = ld.filter(l => l.studentId === s.id).reduce((sum, r) => sum + r.balance, 0);
-                if (totalDue > 0) tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4">${s.name}</td><td class="px-6 py-4">${s.fatherName}</td><td class="px-6 py-4 text-right font-bold text-rose-600">Rs ${totalDue}</td></tr>`;
+                if (totalDue > 0) tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4 font-medium">${s.name}</td><td class="px-6 py-4 text-slate-500">${s.fatherName}</td><td class="px-6 py-4 text-right font-bold text-rose-600">Rs ${totalDue}</td></tr>`;
             });
         }
     </script>
