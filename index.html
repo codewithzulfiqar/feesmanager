@@ -4,681 +4,876 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>School Fees Management System</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf-autotable.min.js"></script>
     <style>
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        /* Print Styles */
         @media print {
-            @page { margin: 0; size: auto; }
-            body { background: white; height: auto; overflow: visible; }
-            body * { visibility: hidden; }
-            #receipt-container, #receipt-container * { visibility: visible; }
-            #receipt-container { 
-                position: fixed; left: 0; top: 0; width: 100%; height: 100%;
-                margin: 0; padding: 0; background: white; display: block !important; z-index: 9999;
-            }
+            @page { margin: 0; size: A4; }
+            body { background: white !important; -webkit-print-color-adjust: exact; }
             .no-print { display: none !important; }
+            #receipt-container { 
+                display: block !important; 
+                visibility: visible !important;
+                position: absolute; 
+                top: 0; left: 0; width: 100%;
+                background: white !important;
+                padding: 20px;
+                z-index: 9999;
+            }
+            main, aside, #toast, .modal, .tab-content { display: none !important; }
         }
-        
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Login Overlay */
-        #login-overlay {
-            background-image: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        .active-nav { background: #eff6ff; border-left: 4px solid #3b82f6; color: #1e40af; }
+        .paid-stamp {
+            border: 4px solid #059669;
+            color: #059669;
+            padding: 4px 12px;
+            font-size: 24px;
+            font-weight: bold;
+            text-transform: uppercase;
+            transform: rotate(-15deg);
+            display: inline-block;
+            opacity: 0.7;
+            border-radius: 8px;
+        }
+        .dashboard-card { transition: transform 0.2s; cursor: default; }
+        .dashboard-card:hover { transform: translateY(-5px); }
+        
+        /* Modal for Receipt to prevent UI shift */
+        #receipt-container:not(.hidden) {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 0;
         }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans h-screen flex overflow-hidden">
-
-    <!-- Login Overlay -->
-    <div id="login-overlay" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 fade-in">
-            <div class="text-center mb-8">
-                <div class="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="ph-fill ph-graduation-cap text-3xl"></i>
+<body class="bg-slate-50 font-sans text-slate-900 overflow-hidden">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r flex flex-col no-print">
+            <div class="p-6 border-b flex items-center gap-3">
+                <div id="sidebar-logo" class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white overflow-hidden shadow-lg">
+                    <i class="ph-fill ph-student-house text-2xl"></i>
                 </div>
-                <h2 class="text-2xl font-bold text-slate-800">Welcome Back</h2>
-                <p class="text-slate-500 text-sm">Sign in to manage your school</p>
+                <h1 id="sidebar-school-name" class="font-bold text-lg tracking-tight">SmartSchool</h1>
             </div>
-            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Username</label>
-                    <input type="text" id="login-username" required class="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="admin">
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Password</label>
-                    <input type="password" id="login-password" required class="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" placeholder="••••••••">
-                </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
-                    Sign In
+
+            <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-50">
+                    <i class="ph-bold ph-squares-four text-xl"></i> Dashboard
                 </button>
-                <p class="text-center text-xs text-slate-400 mt-4">Hint: Use admin / admin</p>
-            </form>
-        </div>
-    </div>
+                <button onclick="switchTab('students')" id="nav-students" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-50">
+                    <i class="ph-bold ph-users text-xl"></i> Students
+                </button>
+                <button onclick="switchTab('ledger')" id="nav-ledger" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-50">
+                    <i class="ph-bold ph-notebook text-xl"></i> Fees Ledger
+                </button>
+                <button onclick="switchTab('payment')" id="nav-payment" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-50">
+                    <i class="ph-bold ph-receipt text-xl"></i> Collect Fees
+                </button>
+                <button onclick="switchTab('reports')" id="nav-reports" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-50">
+                    <i class="ph-bold ph-chart-line-up text-xl"></i> Reports
+                </button>
+                <button onclick="checkAdminAccess('settings')" id="nav-settings" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all hover:bg-slate-50">
+                    <i class="ph-bold ph-gear text-xl"></i> School Settings
+                </button>
+            </nav>
+        </aside>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed top-4 right-4 z-[2000] p-4 rounded-lg shadow-xl flex items-center gap-2 transform transition-all duration-300 translate-x-full opacity-0 text-white font-medium">
-        <i id="toast-icon" class="ph-bold ph-check-circle text-xl"></i>
-        <span id="toast-message">Action successful</span>
-    </div>
-
-    <!-- Sidebar -->
-    <aside id="sidebar" class="w-64 bg-slate-900 text-white flex flex-col shrink-0 transition-all duration-300 no-print">
-        <div class="p-6 text-center border-b border-slate-800">
-            <h1 class="font-bold text-xl tracking-tight flex items-center justify-center gap-2">
-                <i class="ph-fill ph-graduation-cap text-indigo-400"></i> SCHOOL MANAGER
-            </h1>
-        </div>
-        
-        <nav class="flex-1 mt-6 px-3 space-y-2">
-            <button onclick="nav('dashboard')" id="nav-dashboard" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
-                <i class="ph ph-squares-four text-xl"></i> <span class="text-sm font-semibold">Dashboard</span>
-            </button>
-            <button onclick="nav('students')" id="nav-students" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
-                <i class="ph ph-users text-xl"></i> <span class="text-sm font-semibold">Students</span>
-            </button>
-            <button onclick="nav('fees')" id="nav-fees" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
-                <i class="ph ph-currency-dollar text-xl"></i> <span class="text-sm font-semibold">Fees Ledger</span>
-            </button>
-            <button onclick="nav('payments')" id="nav-payments" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
-                <i class="ph ph-receipt text-xl"></i> <span class="text-sm font-semibold">Collect Fee</span>
-            </button>
-            <button onclick="nav('reports')" id="nav-reports" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
-                <i class="ph ph-chart-bar text-xl"></i> <span class="text-sm font-semibold">Reports</span>
-            </button>
-        </nav>
-
-        <div class="p-4 border-t border-slate-800">
-            <button onclick="handleLogout()" class="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-colors">
-                <i class="ph ph-sign-out text-xl"></i> <span>Logout</span>
-            </button>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col min-w-0 h-full relative">
-        <!-- Header -->
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 no-print">
-            <div class="flex items-center gap-4">
-                <h2 id="page-title" class="text-xl font-semibold text-slate-700 capitalize">Dashboard</h2>
-            </div>
-            <div class="flex items-center gap-2 text-slate-500">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">A</div>
-                <span class="font-medium">Administrator</span>
-            </div>
-        </header>
-
-        <!-- Content Area -->
-        <div id="content-area" class="flex-1 overflow-y-auto p-8 bg-slate-50">
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto p-8 relative no-print">
             
-            <!-- Dashboard View -->
-            <section id="view-dashboard" class="view-section fade-in">
-                <!-- Quick Actions Section -->
-                <div class="mb-8">
-                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Quick Actions</h3>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <button onclick="openStudentModal()" class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all group">
-                            <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                <i class="ph-bold ph-user-plus text-xl"></i>
-                            </div>
-                            <span class="font-bold text-slate-700">Add Student</span>
-                        </button>
-                        <button onclick="nav('payments')" class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all group">
-                            <div class="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                                <i class="ph-bold ph-hand-coins text-xl"></i>
-                            </div>
-                            <span class="font-bold text-slate-700">Collect Fee</span>
-                        </button>
-                        <button onclick="nav('fees')" class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-amber-300 hover:shadow-md transition-all group">
-                            <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                                <i class="ph-bold ph-book-open text-xl"></i>
-                            </div>
-                            <span class="font-bold text-slate-700">View Ledger</span>
-                        </button>
-                        <button onclick="nav('reports')" class="flex items-center gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-rose-300 hover:shadow-md transition-all group">
-                            <div class="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-colors">
-                                <i class="ph-bold ph-file-text text-xl"></i>
-                            </div>
-                            <span class="font-bold text-slate-700">Arrears List</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Stats Row -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500 flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600"><i class="ph-fill ph-users text-2xl"></i></div>
-                        <div><p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Students</p><p class="text-2xl font-black text-slate-800" id="dash-active">0</p></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-indigo-500 flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600"><i class="ph-fill ph-money text-2xl"></i></div>
-                        <div><p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Expected (Month)</p><p class="text-2xl font-black text-slate-800" id="dash-expected">0</p></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500 flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><i class="ph-fill ph-wallet text-2xl"></i></div>
-                        <div><p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Collected (Month)</p><p class="text-2xl font-black text-slate-800" id="dash-collected">0</p></div>
-                    </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-rose-500 flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600"><i class="ph-fill ph-warning-circle text-2xl"></i></div>
-                        <div><p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Arrears</p><p class="text-2xl font-black text-slate-800" id="dash-arrears">0</p></div>
-                    </div>
-                </div>
+            <!-- Dashboard -->
+            <section id="tab-dashboard" class="tab-content">
+                <header class="mb-8">
+                    <h2 class="text-3xl font-bold">Financial Overview</h2>
+                    <p class="text-slate-500">Live statistics from your fees database.</p>
+                </header>
                 
-                <!-- Detailed Stats Grid -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                            <i class="ph-fill ph-chart-bar text-indigo-500"></i> Class-wise Enrollment
-                        </h3>
-                        <div id="class-stats-container" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="dashboard-card bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><i class="ph-fill ph-users-three text-2xl"></i></div>
+                            <span class="text-blue-500 bg-blue-50 px-2 py-1 rounded-lg text-xs font-bold">Active</span>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 text-sm font-medium">Total Students</p>
+                            <h3 class="text-3xl font-bold mt-1" id="dash-total-students">0</h3>
+                        </div>
                     </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                        <h3 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                            <i class="ph-fill ph-clock-counter-clockwise text-orange-500"></i> Recent Fee Collections
-                        </h3>
-                        <div class="overflow-y-auto max-h-64">
-                            <table class="w-full text-sm">
-                                <thead class="text-slate-500 text-xs uppercase bg-slate-50 sticky top-0">
-                                    <tr>
-                                        <th class="py-2 px-2 text-left">Student</th>
-                                        <th class="py-2 px-2 text-right">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="recent-payments-body" class="divide-y divide-slate-100"></tbody>
-                            </table>
+
+                    <div class="dashboard-card bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center"><i class="ph-fill ph-hand-coins text-2xl"></i></div>
+                            <span class="text-emerald-500 bg-emerald-50 px-2 py-1 rounded-lg text-xs font-bold">Collected</span>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 text-sm font-medium">Fees Collected</p>
+                            <h3 class="text-3xl font-bold mt-1 text-emerald-600" id="dash-total-collected">Rs 0</h3>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center"><i class="ph-fill ph-warning-circle text-2xl"></i></div>
+                            <span class="text-rose-500 bg-rose-50 px-2 py-1 rounded-lg text-xs font-bold">Pending</span>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 text-sm font-medium">Outstanding Dues</p>
+                            <h3 class="text-3xl font-bold mt-1 text-rose-600" id="dash-total-dues">Rs 0</h3>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center"><i class="ph-fill ph-bank text-2xl"></i></div>
+                            <span class="text-indigo-500 bg-indigo-50 px-2 py-1 rounded-lg text-xs font-bold">Forecast</span>
+                        </div>
+                        <div>
+                            <p class="text-slate-500 text-sm font-medium">Total Receivable</p>
+                            <h3 class="text-3xl font-bold mt-1" id="dash-total-receivable">Rs 0</h3>
                         </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- Students View -->
-            <section id="view-students" class="view-section hidden fade-in">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                    <div class="relative w-full sm:w-96">
-                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                        <input type="text" id="student-search" onkeyup="renderStudents()" placeholder="Search by name or class..." 
-                            class="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                    <!-- Previous 6 Months Analysis -->
+                    <div class="bg-white p-8 rounded-[2rem] border shadow-sm">
+                        <h4 class="font-bold mb-6 flex items-center gap-2 text-slate-800"><i class="ph-bold ph-calendar text-blue-600"></i> Last 6 Months Collection</h4>
+                        <div class="space-y-4" id="monthly-analysis-list">
+                            <!-- JS will inject here -->
+                        </div>
                     </div>
-                    <button onclick="openStudentModal()" class="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm font-medium">
-                        <i class="ph ph-plus-bold"></i> Add Students
-                    </button>
-                </div>
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Name</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Father Name</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Class</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Fee (Rs)</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Status</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700 text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="students-table-body" class="divide-y divide-slate-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
 
-            <!-- Fees View -->
-            <section id="view-fees" class="view-section hidden fade-in">
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 items-end mb-6">
-                    <div class="w-full md:w-auto">
-                        <label class="block text-sm font-medium text-slate-600 mb-1">Fee Month</label>
-                        <input type="month" id="ledger-month" onchange="renderFees()" class="w-full md:w-64 p-2 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500">
-                    </div>
-                    <button onclick="generateFees()" class="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition flex items-center gap-2 font-medium">
-                        <i class="ph ph-arrows-clockwise"></i> Generate Fee Ledger
-                    </button>
-                </div>
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-slate-50 border-b border-slate-200">
-                                <tr>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Student</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Payable</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Paid</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Balance</th>
-                                    <th class="px-6 py-4 font-semibold text-slate-700">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ledger-table-body" class="divide-y divide-slate-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Payments View -->
-            <section id="view-payments" class="view-section hidden fade-in">
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start no-print">
-                    <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200 space-y-6">
-                        <h3 class="text-xl font-bold flex items-center gap-2 text-slate-800"><i class="ph ph-money text-indigo-600"></i> Collect Fee</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600 mb-1">Select Month</label>
-                                <input type="month" id="pay-month" onchange="initPaymentForm()" class="w-full p-2.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600 mb-1">Select Student (with dues)</label>
-                                <select id="pay-student" onchange="updatePaymentAmount()" class="w-full p-2.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-                                    <option value="">-- Choose Student --</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-600 mb-1">Amount Receiving (Rs)</label>
-                                <input type="number" id="pay-amount" class="w-full p-2.5 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-lg font-bold text-emerald-700">
-                            </div>
-                            <button onclick="processPayment()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
-                                Confirm & Print Receipt
+                    <div class="bg-white p-8 rounded-[2rem] border shadow-sm">
+                        <h4 class="font-bold mb-4 flex items-center gap-2"><i class="ph ph-trend-up text-blue-600"></i> Quick Actions</h4>
+                        <div class="flex flex-col gap-4">
+                            <button onclick="switchTab('payment')" class="w-full p-4 border rounded-2xl hover:bg-blue-50 hover:border-blue-200 transition-all text-left flex items-center gap-4">
+                                <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600"><i class="ph-bold ph-receipt text-2xl"></i></div>
+                                <div>
+                                    <p class="font-bold">Collect New Fee</p>
+                                    <p class="text-xs text-slate-500">Quickly process a student payment</p>
+                                </div>
+                            </button>
+                            <button onclick="switchTab('reports')" class="w-full p-4 border rounded-2xl hover:bg-rose-50 hover:border-rose-200 transition-all text-left flex items-center gap-4">
+                                <div class="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600"><i class="ph-bold ph-file-pdf"></i></div>
+                                <div>
+                                    <p class="font-bold">Generate Defaulters List</p>
+                                    <p class="text-xs text-slate-500">Export unpaid student details</p>
+                                </div>
                             </button>
                         </div>
                     </div>
                 </div>
-
-                <!-- Receipt Container (Print Layout) -->
-                <div id="receipt-container" class="hidden fixed inset-0 bg-white z-[200] overflow-y-auto">
-                    <button onclick="closeReceipt()" class="fixed top-4 right-4 bg-slate-800 text-white p-2 rounded-full no-print z-50 hover:bg-slate-700">
-                        <i class="ph-bold ph-x"></i> Close
-                    </button>
-                    <div class="max-w-3xl mx-auto my-8">
-                        <div class="receipt-copy bg-white p-8 relative border-2 border-slate-800">
-                            <div class="absolute top-2 right-2 text-xs font-bold border border-slate-400 px-2 py-1 uppercase rounded bg-slate-100 text-slate-600">Student Copy</div>
-                            <div class="text-center border-b-2 border-slate-800 pb-4 mb-6">
-                                <h2 class="text-3xl font-black text-slate-800 tracking-tight">FUTURE STAR ACADEMY</h2>
-                                <p class="text-slate-500 font-medium tracking-wide text-sm mt-1">Excellence in Education</p>
-                            </div>
-                            <div class="grid grid-cols-2 gap-8 text-sm mb-6">
-                                <div><span class="text-slate-500 uppercase font-bold text-xs block">Receipt No</span> <span class="r-no font-mono text-lg font-bold">#000</span></div>
-                                <div class="text-right"><span class="text-slate-500 uppercase font-bold text-xs block">Fee Month</span> <span class="r-month font-bold text-lg">JAN 2024</span></div>
-                            </div>
-                            <div class="bg-slate-50 p-4 rounded-lg mb-6 border border-slate-100">
-                                <div class="flex justify-between mb-2"><span>Student Name</span><span class="r-name font-bold">Name</span></div>
-                                <div class="flex justify-between"><span>Class</span><span class="r-class font-medium">Class</span></div>
-                            </div>
-                            <div class="border-t border-b border-slate-200 py-4 mb-6 space-y-2">
-                                <div class="flex justify-between font-bold"><span>Amount Paid</span><span class="r-paid text-emerald-700">Rs 0</span></div>
-                                <div class="flex justify-between"><span>Remaining Balance</span><span class="r-bal text-rose-600">Rs 0</span></div>
-                            </div>
-                            <div class="flex justify-between mt-12"><div class="border-t border-slate-300 w-32 text-center text-xs pt-1">Accountant</div><div class="text-xs text-slate-400 italic">Generated by School Manager</div></div>
-                        </div>
-                        <div class="text-center mt-8 no-print">
-                            <button onclick="window.print()" class="bg-indigo-600 text-white px-8 py-3 rounded-lg font-bold shadow-lg">Print Receipts</button>
-                        </div>
-                    </div>
-                </div>
             </section>
 
-             <!-- Reports View -->
-             <section id="view-reports" class="view-section hidden fade-in">
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex gap-4 items-center mb-6">
-                    <input type="month" id="report-month" onchange="renderReports()" class="p-2 rounded-lg border border-slate-200 outline-none">
-                    <h3 class="text-lg font-semibold text-slate-700">Monthly Arrears Report</h3>
-                </div>
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <!-- Students Section -->
+            <section id="tab-students" class="tab-content hidden">
+                <header class="flex justify-between items-center mb-8">
+                    <div><h2 class="text-3xl font-bold">Students</h2></div>
+                    <div class="flex gap-2">
+                        <label class="bg-emerald-600 text-white px-4 py-2 rounded-xl cursor-pointer hover:bg-emerald-700 flex items-center gap-2 shadow-sm">
+                            <i class="ph-bold ph-file-arrow-up"></i> Upload CSV
+                            <input type="file" id="csv-upload" accept=".csv" class="hidden" onchange="handleFileUpload(event)">
+                        </label>
+                        <button onclick="toggleModal('student-modal')" class="bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg hover:bg-blue-700"><i class="ph-bold ph-plus"></i> Add Student</button>
+                    </div>
+                </header>
+                <div class="bg-white rounded-3xl border overflow-hidden shadow-sm">
                     <table class="w-full text-left">
-                        <thead class="bg-slate-50 border-b border-slate-200">
-                            <tr>
-                                <th class="px-6 py-4 font-semibold text-slate-700">Student Name</th>
-                                <th class="px-6 py-4 font-semibold text-slate-700">Father Name</th>
-                                <th class="px-6 py-4 font-semibold text-slate-700 text-right">Balance Due</th>
-                            </tr>
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                            <tr><th class="px-6 py-4">ID</th><th class="px-6 py-4">Name</th><th class="px-6 py-4">Father</th><th class="px-6 py-4">Class</th><th class="px-6 py-4">Monthly Fee</th><th class="px-6 py-4">Actions</th></tr>
                         </thead>
-                        <tbody id="report-table-body" class="divide-y divide-slate-100"></tbody>
+                        <tbody id="student-table-body" class="divide-y divide-slate-100"></tbody>
                     </table>
                 </div>
             </section>
+
+            <!-- Ledger Section -->
+            <section id="tab-ledger" class="tab-content hidden">
+                <header class="mb-8"><h2 class="text-3xl font-bold">Fees Ledger</h2></header>
+                <div class="bg-white rounded-3xl border overflow-hidden shadow-sm">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                            <tr>
+                                <th class="px-6 py-4">Student</th>
+                                <th class="px-6 py-4">Father</th>
+                                <th class="px-6 py-4">Class</th>
+                                <th class="px-6 py-4">Payable</th>
+                                <th class="px-6 py-4">Paid</th>
+                                <th class="px-6 py-4">Balance</th>
+                                <th class="px-6 py-4 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledger-table-body" class="divide-y divide-slate-100"></tbody>
+                        <tfoot class="bg-slate-50 font-bold">
+                            <tr>
+                                <td colspan="3" class="px-6 py-4 text-right">Total Aggregate:</td>
+                                <td class="px-6 py-4" id="total-payable-sum">Rs 0</td>
+                                <td class="px-6 py-4 text-emerald-600" id="total-paid-sum">Rs 0</td>
+                                <td class="px-6 py-4 text-rose-600" id="total-balance-sum">Rs 0</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Payment Section -->
+            <section id="tab-payment" class="tab-content hidden">
+                <div class="max-w-xl mx-auto bg-white p-10 rounded-[3rem] border shadow-xl">
+                    <h2 class="text-2xl font-bold mb-6 text-center">Collect Fee</h2>
+                    <form id="payment-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">Student (Showing only with Dues)</label>
+                            <select id="pay-student-id" required onchange="handleStudentSelect()" class="w-full p-4 bg-slate-50 border rounded-2xl outline-none ring-offset-2 focus:ring-2 focus:ring-blue-500">
+                                <option value="">Select Student...</option>
+                            </select>
+                        </div>
+                        <div id="payment-details-box" class="hidden space-y-4">
+                            <div class="bg-rose-50 p-4 rounded-2xl border border-rose-100 flex justify-between items-center">
+                                <div>
+                                    <p class="text-rose-600 text-xs font-bold uppercase">Outstanding Balance</p>
+                                    <p class="text-2xl font-bold text-rose-700" id="pay-outstanding">Rs 0</p>
+                                </div>
+                                <i class="ph ph-receipt text-3xl text-rose-300"></i>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Fee Month</label>
+                                    <input type="month" id="pay-month" required class="w-full p-4 bg-slate-50 border rounded-2xl">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Payment Amount</label>
+                                    <input type="number" id="pay-amount" required class="w-full p-4 bg-slate-100 border rounded-2xl font-bold text-xl">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-black transition-all shadow-lg active:scale-95">Process & Generate Receipt</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Reports Section -->
+            <section id="tab-reports" class="tab-content hidden">
+                <header class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold">Reports Center</h2>
+                    <div class="flex gap-2">
+                        <select id="report-class-filter" onchange="renderReports()" class="px-4 py-2 border rounded-xl bg-white shadow-sm">
+                            <option value="">All Classes</option>
+                            <option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option>
+                            <option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option>
+                        </select>
+                        <button onclick="exportToPDF()" class="bg-rose-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg hover:bg-rose-700">
+                            <i class="ph-bold ph-file-pdf"></i> Export to PDF
+                        </button>
+                    </div>
+                </header>
+                <div class="bg-white rounded-3xl border overflow-hidden shadow-sm">
+                    <table class="w-full text-left" id="report-table">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                            <tr>
+                                <th class="px-6 py-4">Student Name</th>
+                                <th class="px-6 py-4">Father Name</th>
+                                <th class="px-6 py-4">Class</th>
+                                <th class="px-6 py-4">Outstanding Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="report-table-body" class="divide-y divide-slate-100"></tbody>
+                        <tfoot class="bg-slate-50 font-bold">
+                            <tr>
+                                <td colspan="3" class="px-6 py-4 text-right">Total Defaulter Sum:</td>
+                                <td class="px-6 py-4 text-rose-600" id="report-total-sum">Rs 0</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Settings -->
+            <section id="tab-settings" class="tab-content hidden">
+                <header class="mb-8"><h2 class="text-3xl font-bold">School Settings</h2></header>
+                <div class="max-w-2xl bg-white p-8 rounded-3xl border shadow-sm space-y-6">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <label class="block text-sm font-semibold mb-1">School Name</label>
+                            <input type="text" id="set-school-name" class="w-full p-3 bg-slate-50 border rounded-xl">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-semibold mb-1">Address</label>
+                            <input type="text" id="set-address" class="w-full p-3 bg-slate-50 border rounded-xl">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">Contact No.</label>
+                            <input type="text" id="set-contact" class="w-full p-3 bg-slate-50 border rounded-xl">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1">Upload School Logo</label>
+                            <input type="file" id="set-logo-input" accept="image/*" class="w-full p-2 bg-slate-50 border rounded-xl text-sm" onchange="handleLogoUpload(this)">
+                        </div>
+                    </div>
+                    <div id="logo-preview-container" class="border-t pt-4 flex items-center gap-4">
+                         <div id="logo-preview" class="w-16 h-16 border rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden">
+                             <i class="ph ph-image text-slate-300"></i>
+                         </div>
+                         <p class="text-xs text-slate-400">Preview of currently saved logo.</p>
+                    </div>
+                    <button onclick="saveSettings()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:bg-blue-700">Update Profile</button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Receipt Template -->
+        <div id="receipt-container" class="hidden no-print">
+            <div class="receipt-box border-2 border-black p-4 mb-8 relative bg-white w-[700px] shadow-2xl">
+                <div class="flex justify-between items-start border-b-2 border-dashed pb-4 mb-4">
+                    <div class="flex items-center gap-4">
+                        <div class="r-logo-wrap w-16 h-16 border-2 border-slate-900 rounded flex items-center justify-center overflow-hidden">
+                             <img class="r-logo w-full h-full object-contain" src="">
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-black uppercase r-school-name">SMARTSCHOOL</h2>
+                            <p class="text-[12px] r-school-address"></p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold border-2 border-black px-4 py-1 text-sm bg-black text-white">STUDENT COPY</p>
+                        <p class="text-sm mt-1">Date: <span class="r-date"></span></p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-y-3 text-sm mb-6 border-b pb-4">
+                    <p><strong>Student Name:</strong> <span class="r-name"></span></p>
+                    <p><strong>Father's Name:</strong> <span class="r-father"></span></p>
+                    <p><strong>Class:</strong> <span class="r-class"></span></p>
+                    <p><strong>Billing Month:</strong> <span class="r-month"></span></p>
+                </div>
+                <div class="bg-slate-100 p-4 rounded-lg flex justify-between items-center mb-8 border border-slate-200">
+                    <div class="space-y-1">
+                        <p class="text-sm">Total Payable: <span class="r-payable"></span></p>
+                        <p class="text-xl font-black">Paid Amount: <span class="r-paid"></span></p>
+                        <p class="text-sm">Current Balance: <span class="r-bal"></span></p>
+                    </div>
+                    <div class="paid-stamp">PAID</div>
+                </div>
+                <div class="mt-12 flex justify-between items-end">
+                    <p class="text-[10px] text-slate-400">System Generated | SmartSchool Fees Manager</p>
+                    <div class="text-center border-t-2 border-black w-48 text-sm pt-1 font-bold">Signature of Accountant</div>
+                </div>
+            </div>
+            
+            <div class="receipt-box border-2 border-black p-4 relative bg-white w-[700px] shadow-2xl">
+                <div class="flex justify-between items-start border-b-2 border-dashed pb-4 mb-4">
+                    <div class="flex items-center gap-4">
+                        <div class="r-logo-wrap w-16 h-16 border-2 border-slate-900 rounded flex items-center justify-center overflow-hidden">
+                             <img class="r-logo w-full h-full object-contain" src="">
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-black uppercase r-school-name">SMARTSCHOOL</h2>
+                            <p class="text-[12px] r-school-address"></p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold border-2 border-black px-4 py-1 text-sm bg-black text-white">OFFICE COPY</p>
+                        <p class="text-sm mt-1">Date: <span class="r-date"></span></p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-y-3 text-sm mb-6 border-b pb-4">
+                    <p><strong>Student Name:</strong> <span class="r-name"></span></p>
+                    <p><strong>Father's Name:</strong> <span class="r-father"></span></p>
+                    <p><strong>Class:</strong> <span class="r-class"></span></p>
+                    <p><strong>Billing Month:</strong> <span class="r-month"></span></p>
+                </div>
+                <div class="bg-slate-100 p-4 rounded-lg flex justify-between items-center mb-8 border border-slate-200">
+                    <div class="space-y-1">
+                        <p class="text-sm">Total Payable: <span class="r-payable"></span></p>
+                        <p class="text-xl font-black">Paid Amount: <span class="r-paid"></span></p>
+                        <p class="text-sm">Current Balance: <span class="r-bal"></span></p>
+                    </div>
+                    <div class="paid-stamp">PAID</div>
+                </div>
+                <div class="mt-12 flex justify-between items-end">
+                    <p class="text-[10px] text-slate-400">System Generated | SmartSchool Fees Manager</p>
+                    <div class="text-center border-t-2 border-black w-48 text-sm pt-1 font-bold">Signature of Accountant</div>
+                </div>
+            </div>
+            <div class="mt-8 flex justify-center no-print">
+                <button onclick="document.getElementById('receipt-container').classList.add('hidden')" class="bg-blue-600 text-white px-10 py-3 rounded-full font-bold shadow-xl">Close Receipt View</button>
+            </div>
         </div>
-        
-        <footer class="h-12 bg-white border-t border-slate-200 flex items-center justify-center text-slate-400 text-xs gap-4 shrink-0 no-print">
-            <span>&copy; 2026 Abu Meesam Tech</span>
-            <span>Support: +92 312 3477418</span>
-        </footer>
-    </main>
+    </div>
 
     <!-- Student Modal -->
-    <div id="student-modal" class="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
-            <div class="p-6 border-b flex justify-between items-center">
-                <h3 id="modal-title" class="text-xl font-bold">Add New Students</h3>
-                <button onclick="closeModal()"><i class="ph-bold ph-x text-xl"></i></button>
-            </div>
-            <form id="student-form" onsubmit="saveStudent(event)" class="p-8 space-y-4">
-                <input type="hidden" id="st-id">
-                <textarea id="st-names" rows="2" placeholder="Student Names (comma separated)" required class="w-full p-2.5 border rounded-lg"></textarea>
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="text" id="st-father" placeholder="Father Name" required class="p-2.5 border rounded-lg">
-                    <select id="st-class" class="p-2.5 border rounded-lg">
-                        <option>Nursery</option><option>Prep</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option>
+    <div id="student-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl scale-95 transition-transform">
+            <h3 class="text-2xl font-bold mb-6">Student Information</h3>
+            <form id="student-form" class="space-y-4">
+                <input type="hidden" id="edit-id">
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase ml-2">Full Name</label>
+                    <input type="text" id="st-name" required class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase ml-2">Father's Name</label>
+                    <input type="text" id="st-father" required class="w-full p-4 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase ml-2">Assigned Class</label>
+                    <select id="st-class" class="w-full p-4 bg-slate-50 border rounded-2xl">
+                        <option>Grade 1</option><option>Grade 2</option><option>Grade 3</option><option>Grade 4</option><option>Grade 5</option>
+                        <option>Grade 6</option><option>Grade 7</option><option>Grade 8</option><option>Grade 9</option><option>Grade 10</option>
                     </select>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="number" id="st-fee" placeholder="Monthly Fee" required class="p-2.5 border rounded-lg">
-                    <input type="date" id="st-date" required class="p-2.5 border rounded-lg">
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-500 uppercase ml-2">Monthly Fee (Rs)</label>
+                    <input type="number" id="st-fee" required class="w-full p-4 bg-slate-50 border rounded-2xl">
                 </div>
-                <select id="st-status" class="w-full p-2.5 border rounded-lg"><option value="Active">Active</option><option value="Left">Left</option></select>
-                <div class="flex justify-end gap-3 mt-4">
-                    <button type="button" onclick="closeModal()" class="px-6 py-2">Cancel</button>
-                    <button type="submit" class="px-8 py-2 bg-indigo-600 text-white rounded-lg">Save Data</button>
+                <div class="pt-4 space-y-2">
+                    <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg">Save Student Profile</button>
+                    <button type="button" onclick="toggleModal('student-modal')" class="w-full text-slate-400 py-2">Discard Changes</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-8 py-3 rounded-2xl shadow-2xl opacity-0 transition-all z-[100] pointer-events-none">Message</div>
+
     <script>
         const DB = {
-            getStudents: () => JSON.parse(localStorage.getItem('sfms_students') || '[]'),
-            setStudents: (data) => localStorage.setItem('sfms_students', JSON.stringify(data)),
-            getLedger: () => JSON.parse(localStorage.getItem('sfms_ledger') || '[]'),
-            setLedger: (data) => localStorage.setItem('sfms_ledger', JSON.stringify(data)),
+            init() {
+                if(!localStorage.getItem('ss_students')) localStorage.setItem('ss_students', '[]');
+                if(!localStorage.getItem('ss_ledger')) localStorage.setItem('ss_ledger', '[]');
+                if(!localStorage.getItem('ss_transactions')) localStorage.setItem('ss_transactions', '[]');
+                if(!localStorage.getItem('ss_settings')) localStorage.setItem('ss_settings', JSON.stringify({
+                    name: "SmartSchool",
+                    address: "Main Campus, City Education Complex",
+                    contact: "+92 300 0000000",
+                    logo: ""
+                }));
+            },
+            getStudents: () => JSON.parse(localStorage.getItem('ss_students')),
+            getLedger: () => JSON.parse(localStorage.getItem('ss_ledger')),
+            getTransactions: () => JSON.parse(localStorage.getItem('ss_transactions')),
+            getSettings: () => JSON.parse(localStorage.getItem('ss_settings')),
+            
+            saveStudent(st) {
+                const data = this.getStudents();
+                const isDuplicate = data.some(s => 
+                    s.name.toLowerCase().trim() === st.name.toLowerCase().trim() && 
+                    s.fatherName.toLowerCase().trim() === st.fatherName.toLowerCase().trim() &&
+                    s.id !== st.id
+                );
+
+                if(isDuplicate) {
+                    showToast("Duplicate Detected! Student already exists.");
+                    return false;
+                }
+
+                if(st.id) {
+                    const idx = data.findIndex(s => s.id === st.id);
+                    data[idx] = st;
+                } else {
+                    st.id = 'ST' + Math.floor(Math.random() * 900000 + 100000);
+                    st.status = 'Active';
+                    data.push(st);
+                    
+                    const ledger = this.getLedger();
+                    const currentMonth = new Date().toISOString().slice(0, 7);
+                    ledger.push({
+                        studentId: st.id,
+                        month: currentMonth,
+                        payable: parseFloat(st.fee),
+                        paid: 0,
+                        balance: parseFloat(st.fee)
+                    });
+                    localStorage.setItem('ss_ledger', JSON.stringify(ledger));
+                }
+                localStorage.setItem('ss_students', JSON.stringify(data));
+                this.updateUI();
+                return true;
+            },
+            
+            updateUI() {
+                renderDashboard();
+                renderStudents();
+                renderLedger();
+                initPaymentForm();
+                renderReports();
+                applySettings();
+            }
         };
 
-        let currentTab = 'dashboard';
-        const today = new Date().toISOString().slice(0, 7);
-        
-        // LOGIN SYSTEM LOGIC
-        function handleLogin(e) {
-            e.preventDefault();
-            const u = document.getElementById('login-username').value;
-            const p = document.getElementById('login-password').value;
-            
-            if (u === 'admin' && p === 'admin') {
-                sessionStorage.setItem('sfms_logged_in', 'true');
-                document.getElementById('login-overlay').classList.add('hidden');
-                showToast("Welcome back, Admin!");
-                initApp();
-            } else {
-                showToast("Invalid credentials", true);
-            }
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+            document.querySelectorAll('aside button').forEach(b => b.classList.remove('active-nav'));
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+            document.getElementById('nav-' + tab).classList.add('active-nav');
         }
 
-        function handleLogout() {
-            sessionStorage.removeItem('sfms_logged_in');
-            location.reload();
+        function checkAdminAccess(tab) {
+            const pass = prompt("Enter School Admin/Developer Code:");
+            if (pass === "admin123") switchTab(tab);
+            else showToast("Access Restricted!");
         }
 
-        function checkAuth() {
-            if (sessionStorage.getItem('sfms_logged_in') === 'true') {
-                document.getElementById('login-overlay').classList.add('hidden');
-                initApp();
-            }
+        function toggleModal(id) {
+            document.getElementById(id).classList.toggle('hidden');
         }
 
-        function initApp() {
-            document.getElementById('ledger-month').value = today;
-            document.getElementById('pay-month').value = today;
-            document.getElementById('report-month').value = today;
-            nav('dashboard');
-        }
-
-        window.onload = checkAuth;
-
-        function nav(tab) {
-            currentTab = tab;
-            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg'));
-            const activeBtn = document.getElementById(`nav-${tab}`);
-            if(activeBtn) activeBtn.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
-            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`view-${tab}`).classList.remove('hidden');
-            
-            document.getElementById('page-title').innerText = tab;
-
-            if(tab === 'dashboard') renderDashboard();
-            if(tab === 'students') renderStudents();
-            if(tab === 'fees') renderFees();
-            if(tab === 'payments') initPaymentForm();
-            if(tab === 'reports') renderReports();
-        }
-
-        function showToast(msg, isError = false) {
+        function showToast(msg) {
             const t = document.getElementById('toast');
-            t.className = `fixed top-4 right-4 z-[2000] p-4 rounded-lg shadow-xl flex items-center gap-2 transform transition-all duration-300 text-white font-medium ${isError ? 'bg-rose-600' : 'bg-emerald-600'}`;
-            document.getElementById('toast-message').innerText = msg;
-            t.classList.remove('translate-x-full', 'opacity-0');
-            setTimeout(() => t.classList.add('translate-x-full', 'opacity-0'), 3000);
-        }
-
-        function renderDashboard() {
-            const st = DB.getStudents();
-            const ld = DB.getLedger();
-            document.getElementById('dash-active').innerText = st.filter(s => s.status === 'Active').length;
-            const currentMonthRecords = ld.filter(l => l.month === today);
-            document.getElementById('dash-expected').innerText = currentMonthRecords.reduce((a, b) => a + b.payable, 0);
-            document.getElementById('dash-collected').innerText = currentMonthRecords.reduce((a, b) => a + b.paid, 0);
-            document.getElementById('dash-arrears').innerText = ld.reduce((a, b) => a + b.balance, 0);
-            
-            // Render Recent Collections (NEW)
-            const recentBody = document.getElementById('recent-payments-body');
-            recentBody.innerHTML = '';
-            // Get all records where payment > 0, sort by most recent month/entry
-            const allPayments = ld.filter(l => l.paid > 0)
-                                 .sort((a, b) => b.month.localeCompare(a.month))
-                                 .slice(0, 10);
-            
-            if(allPayments.length === 0) {
-                recentBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-slate-400 italic">No payments recorded yet</td></tr>';
-            } else {
-                allPayments.forEach(p => {
-                    const s = st.find(x => x.id === p.studentId) || {name: 'Unknown'};
-                    recentBody.innerHTML += `
-                        <tr class="hover:bg-slate-50">
-                            <td class="py-3 px-2">
-                                <div class="font-bold text-slate-700">${s.name}</div>
-                                <div class="text-[10px] text-slate-400 uppercase font-bold">${p.month}</div>
-                            </td>
-                            <td class="py-3 px-2 text-right">
-                                <span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold">Rs ${p.paid}</span>
-                            </td>
-                        </tr>
-                    `;
-                });
-            }
-
-            const classCounts = {};
-            st.filter(s => s.status === 'Active').forEach(s => classCounts[s.className] = (classCounts[s.className] || 0) + 1);
-            const classContainer = document.getElementById('class-stats-container');
-            classContainer.innerHTML = '';
-            ['Nursery', 'Prep', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'].forEach(cls => {
-                const count = classCounts[cls] || 0;
-                classContainer.innerHTML += `<div class="p-3 border rounded-lg bg-white"><div class="text-xs font-bold text-slate-400">CLASS ${cls}</div><div class="text-lg font-black">${count}</div></div>`;
-            });
+            t.innerText = msg;
+            t.classList.remove('opacity-0');
+            t.classList.add('translate-y-[-20px]');
+            setTimeout(() => {
+                t.classList.add('opacity-0');
+                t.classList.remove('translate-y-[-20px]');
+            }, 3000);
         }
 
         function renderStudents() {
-            const q = document.getElementById('student-search').value.toLowerCase();
-            const st = DB.getStudents();
-            const tbody = document.getElementById('students-table-body');
-            tbody.innerHTML = '';
-            st.filter(s => s.name.toLowerCase().includes(q) || s.className.toLowerCase().includes(q)).forEach(s => {
-                tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4 font-medium">${s.name}</td><td class="px-6 py-4 text-slate-500">${s.fatherName}</td><td class="px-6 py-4">${s.className}</td><td class="px-6 py-4 font-mono">Rs ${s.monthlyFee}</td><td class="px-6 py-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${s.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}">${s.status}</span></td><td class="px-6 py-4 text-center"><button onclick="editStudent('${s.id}')" class="text-indigo-600 mr-2 hover:underline">Edit</button><button onclick="deleteStudent('${s.id}')" class="text-rose-600 hover:underline">Del</button></td></tr>`;
-            });
-        }
-
-        let editingId = null;
-        function openStudentModal() {
-            document.getElementById('student-modal').classList.remove('hidden');
-            document.getElementById('student-form').reset();
-            document.getElementById('st-date').valueAsDate = new Date();
-            editingId = null;
-        }
-
-        function closeModal() { document.getElementById('student-modal').classList.add('hidden'); }
-
-        function saveStudent(e) {
-            e.preventDefault();
-            const names = document.getElementById('st-names').value;
-            const fatherName = document.getElementById('st-father').value;
-            const className = document.getElementById('st-class').value;
-            const fee = parseInt(document.getElementById('st-fee').value);
-            const date = document.getElementById('st-date').value;
-            const status = document.getElementById('st-status').value;
-            let st = DB.getStudents();
-            if (editingId) {
-                const idx = st.findIndex(x => x.id === editingId);
-                if (idx !== -1) st[idx] = { ...st[idx], name: names, fatherName, className, monthlyFee: fee, admissionDate: date, status };
-            } else {
-                names.split(',').map(n => n.trim()).filter(n => n).forEach(n => {
-                    st.push({ id: 'S' + Date.now() + Math.floor(Math.random()*1000), name: n, fatherName, className, monthlyFee: fee, admissionDate: date, status });
-                });
-            }
-            DB.setStudents(st);
-            closeModal();
-            renderStudents();
-            showToast("Saved Successfully");
+            const tbody = document.getElementById('student-table-body');
+            tbody.innerHTML = DB.getStudents().map(s => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-6 py-4 text-xs font-mono text-slate-400">${s.id}</td>
+                    <td class="px-6 py-4 font-bold text-slate-700">${s.name}</td>
+                    <td class="px-6 py-4 text-slate-500">${s.fatherName}</td>
+                    <td class="px-6 py-4"><span class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">${s.class}</span></td>
+                    <td class="px-6 py-4 font-bold">Rs ${s.fee}</td>
+                    <td class="px-6 py-4 flex gap-3">
+                        <button onclick="editStudent('${s.id}')" class="text-blue-600"><i class="ph-bold ph-pencil"></i></button>
+                        <button onclick="deleteStudent('${s.id}')" class="text-rose-600"><i class="ph-bold ph-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
         }
 
         function editStudent(id) {
-            const s = DB.getStudents().find(x => x.id === id);
-            if(!s) return;
-            editingId = id;
-            document.getElementById('student-modal').classList.remove('hidden');
-            document.getElementById('st-names').value = s.name;
-            document.getElementById('st-father').value = s.fatherName;
-            document.getElementById('st-class').value = s.className;
-            document.getElementById('st-fee').value = s.monthlyFee;
-            document.getElementById('st-date').value = s.admissionDate;
-            document.getElementById('st-status').value = s.status;
+            const st = DB.getStudents().find(s => s.id === id);
+            document.getElementById('edit-id').value = st.id;
+            document.getElementById('st-name').value = st.name;
+            document.getElementById('st-father').value = st.fatherName;
+            document.getElementById('st-class').value = st.class;
+            document.getElementById('st-fee').value = st.fee;
+            toggleModal('student-modal');
         }
 
         function deleteStudent(id) {
-            if(!confirm("Are you sure?")) return;
-            DB.setStudents(DB.getStudents().filter(x => x.id !== id));
-            renderStudents();
+            if(confirm("Delete student and records?")) {
+                const data = DB.getStudents().filter(s => s.id !== id);
+                localStorage.setItem('ss_students', JSON.stringify(data));
+                DB.updateUI();
+            }
         }
 
-        function renderFees() {
-            const month = document.getElementById('ledger-month').value;
-            const ld = DB.getLedger().filter(l => l.month === month);
-            const st = DB.getStudents();
-            const tbody = document.getElementById('ledger-table-body');
-            tbody.innerHTML = '';
-            ld.forEach(l => {
-                const student = st.find(s => s.id === l.studentId) || { name: '?', className: '?' };
-                tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4 font-medium">${student.name} (${student.className})</td><td class="px-6 py-4">Rs ${l.payable}</td><td class="px-6 py-4">Rs ${l.paid}</td><td class="px-6 py-4 font-bold text-rose-600">Rs ${l.balance}</td><td class="px-6 py-4"><span class="px-2 py-1 rounded text-[10px] font-bold uppercase ${l.balance === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${l.balance === 0 ? 'Paid' : 'Due'}</span></td></tr>`;
-            });
-        }
-
-        function generateFees() {
-            const month = document.getElementById('ledger-month').value;
-            const st = DB.getStudents().filter(s => s.status === 'Active');
-            let ld = DB.getLedger();
-            
-            st.forEach(s => {
-                if(s.admissionDate.slice(0, 7) <= month) {
-                    const existingRecord = ld.find(l => l.studentId === s.id && l.month === month);
-                    if(!existingRecord) {
-                        const prevRecords = ld.filter(l => l.studentId === s.id && l.month < month);
-                        const previousArrears = prevRecords.reduce((sum, r) => sum + r.balance, 0);
-                        const totalPayable = s.monthlyFee + previousArrears;
-                        
-                        ld.push({ 
-                            id: `L-${s.id}-${month}`, studentId: s.id, month: month, 
-                            payable: totalPayable, paid: 0, balance: totalPayable 
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const rows = e.target.result.split('\n').slice(1);
+                let count = 0;
+                rows.forEach(row => {
+                    const cols = row.split(',');
+                    if(cols.length >= 4) {
+                        const success = DB.saveStudent({
+                            name: cols[0].trim(), fatherName: cols[1].trim(), class: cols[2].trim(), fee: cols[3].trim()
                         });
+                        if(success) count++;
                     }
-                }
-            });
-            DB.setLedger(ld);
-            renderFees();
-            showToast("Ledger Updated");
+                });
+                showToast(`${count} Students Imported`);
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function renderLedger() {
+            const sts = DB.getStudents();
+            const ledger = DB.getLedger();
+            const tbody = document.getElementById('ledger-table-body');
+            let totalPay = 0, totalPaid = 0, totalBal = 0;
+
+            tbody.innerHTML = sts.map(s => {
+                const studentRecords = ledger.filter(l => l.studentId === s.id);
+                const payable = studentRecords.reduce((sum, r) => sum + r.payable, 0);
+                const paid = studentRecords.reduce((sum, r) => sum + (r.paid || 0), 0);
+                const balance = payable - paid;
+                totalPay += payable; totalPaid += paid; totalBal += balance;
+
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-6 py-4 font-bold">${s.name}</td>
+                        <td class="px-6 py-4 text-slate-500">${s.fatherName}</td>
+                        <td class="px-6 py-4 text-xs font-bold uppercase">${s.class}</td>
+                        <td class="px-6 py-4">Rs ${payable}</td>
+                        <td class="px-6 py-4">Rs ${paid}</td>
+                        <td class="px-6 py-4 ${balance > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600 font-bold'}">Rs ${balance}</td>
+                        <td class="px-6 py-4 text-center">
+                            ${balance > 0 ? `<button onclick="redirectToPay('${s.id}')" class="bg-rose-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Pay Now</button>` : `<span class="bg-emerald-50 text-emerald-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">Cleared</span>`}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('total-payable-sum').innerText = "Rs " + totalPay;
+            document.getElementById('total-paid-sum').innerText = "Rs " + totalPaid;
+            document.getElementById('total-balance-sum').innerText = "Rs " + totalBal;
+        }
+
+        function redirectToPay(id) {
+            switchTab('payment');
+            document.getElementById('pay-student-id').value = id;
+            handleStudentSelect();
         }
 
         function initPaymentForm() {
-            const month = document.getElementById('pay-month').value;
-            const sel = document.getElementById('pay-student');
-            const st = DB.getStudents().filter(s => s.status === 'Active');
-            const ld = DB.getLedger();
-            sel.innerHTML = '<option value="">-- Choose Student --</option>';
-            st.forEach(s => {
-                const rec = ld.find(l => l.studentId === s.id && l.month === month);
-                if(!rec || rec.balance > 0) sel.innerHTML += `<option value="${s.id}">${s.name} (${s.className})</option>`;
+            const select = document.getElementById('pay-student-id');
+            const ledger = DB.getLedger();
+            
+            const studentsWithDues = DB.getStudents().filter(s => {
+                const bal = ledger.filter(l => l.studentId === s.id).reduce((sum, r) => sum + (r.balance || 0), 0);
+                return bal > 0;
             });
-            document.getElementById('pay-amount').value = '';
-            closeReceipt();
+
+            select.innerHTML = '<option value="">Select Student Profile...</option>' + 
+                studentsWithDues.map(s => `<option value="${s.id}">${s.name} (${s.class})</option>`).join('');
+            
+            document.getElementById('payment-details-box').classList.add('hidden');
         }
 
-        function updatePaymentAmount() {
-            const sid = document.getElementById('pay-student').value;
-            const month = document.getElementById('pay-month').value;
-            if(!sid) return;
-            const st = DB.getStudents().find(s => s.id === sid);
-            const ld = DB.getLedger();
-            const rec = ld.find(l => l.studentId === sid && l.month === month);
-            document.getElementById('pay-amount').value = rec ? rec.balance : st.monthlyFee;
+        function handleStudentSelect() {
+            const id = document.getElementById('pay-student-id').value;
+            if(!id) return;
+            const records = DB.getLedger().filter(l => l.studentId === id);
+            const totalDue = records.reduce((sum, r) => sum + (r.balance || 0), 0);
+            document.getElementById('pay-outstanding').innerText = "Rs " + totalDue;
+            document.getElementById('pay-amount').value = totalDue;
+            document.getElementById('pay-month').value = new Date().toISOString().slice(0, 7);
+            document.getElementById('payment-details-box').classList.remove('hidden');
         }
 
-        function processPayment() {
-            const sid = document.getElementById('pay-student').value;
+        document.getElementById('payment-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const id = document.getElementById('pay-student-id').value;
+            const amt = parseFloat(document.getElementById('pay-amount').value);
             const month = document.getElementById('pay-month').value;
-            const amt = parseInt(document.getElementById('pay-amount').value);
-            
-            if(!sid || isNaN(amt) || amt <= 0) return showToast("Invalid Amount", true);
-            
-            let ld = DB.getLedger();
-            const st = DB.getStudents().find(s => s.id === sid);
-            let idx = ld.findIndex(l => l.studentId === sid && l.month === month);
-            
-            if(idx === -1) {
-                const prevRecords = ld.filter(l => l.studentId === sid && l.month < month);
-                const previousArrears = prevRecords.reduce((sum, r) => sum + r.balance, 0);
-                const totalPayable = st.monthlyFee + previousArrears;
-                
-                ld.push({ 
-                    id: `L-${sid}-${month}`, studentId: sid, month: month, 
-                    payable: totalPayable, paid: 0, balance: totalPayable 
-                });
-                idx = ld.length - 1;
-            }
+            const ledger = DB.getLedger();
+            const studentRecords = ledger.filter(l => l.studentId === id).sort((a,b) => a.month.localeCompare(b.month));
+            const totalDue = studentRecords.reduce((sum, r) => sum + (r.balance || 0), 0);
 
-            if (amt > ld[idx].balance) {
-                return showToast(`Warning: Due is Rs ${ld[idx].balance}`, true);
-            }
-            
-            ld[idx].paid += amt;
-            ld[idx].balance = ld[idx].payable - ld[idx].paid;
-            DB.setLedger(ld);
+            if(amt > totalDue) return showToast("Amount exceeds total dues!");
 
-            // Populate Receipt
-            const rNo = "#" + Math.floor(Math.random()*1000000);
-            document.querySelectorAll('.r-no').forEach(el => el.innerText = rNo);
+            let remaining = amt;
+            studentRecords.forEach(rec => {
+                if(remaining <= 0) return;
+                const deduct = Math.min(remaining, rec.balance);
+                rec.paid = (rec.paid || 0) + deduct; 
+                rec.balance = (rec.balance || 0) - deduct; 
+                remaining -= deduct;
+            });
+
+            localStorage.setItem('ss_ledger', JSON.stringify(ledger));
+            const txs = DB.getTransactions();
+            txs.push({ id: Date.now(), studentId: id, amount: amt, month: month, date: new Date().toLocaleDateString(), timestamp: new Date().getTime() });
+            localStorage.setItem('ss_transactions', JSON.stringify(txs));
+
+            prepareReceipt(id, amt, month);
+            DB.updateUI();
+        });
+
+        function prepareReceipt(id, amt, month) {
+            const st = DB.getStudents().find(s => s.id === id);
+            const settings = DB.getSettings();
+            const ledger = DB.getLedger().filter(l => l.studentId === id);
+            const totalPayable = ledger.reduce((sum, r) => sum + r.payable, 0);
+            const totalBalance = ledger.reduce((sum, r) => sum + (r.balance || 0), 0);
+
+            document.querySelectorAll('.r-school-name').forEach(el => el.innerText = settings.name);
+            document.querySelectorAll('.r-school-address').forEach(el => el.innerText = `${settings.address} | ${settings.contact}`);
+            document.querySelectorAll('.r-date').forEach(el => el.innerText = new Date().toLocaleDateString());
             document.querySelectorAll('.r-name').forEach(el => el.innerText = st.name);
-            document.querySelectorAll('.r-class').forEach(el => el.innerText = st.className);
+            document.querySelectorAll('.r-father').forEach(el => el.innerText = st.fatherName);
+            document.querySelectorAll('.r-class').forEach(el => el.innerText = st.class);
             document.querySelectorAll('.r-month').forEach(el => el.innerText = month);
+            document.querySelectorAll('.r-payable').forEach(el => el.innerText = "Rs " + totalPayable);
             document.querySelectorAll('.r-paid').forEach(el => el.innerText = "Rs " + amt);
-            document.querySelectorAll('.r-bal').forEach(el => el.innerText = "Rs " + ld[idx].balance);
+            document.querySelectorAll('.r-bal').forEach(el => el.innerText = "Rs " + totalBalance);
+
+            document.querySelectorAll('.r-logo').forEach(el => {
+                if(settings.logo) { el.src = settings.logo; el.closest('.r-logo-wrap').classList.remove('hidden'); }
+                else el.closest('.r-logo-wrap').classList.add('hidden');
+            });
 
             document.getElementById('receipt-container').classList.remove('hidden');
-            window.print();
-            
-            showToast("Payment Processed");
-            initPaymentForm();
+            setTimeout(() => { window.print(); showToast("Receipt Generated"); }, 500);
         }
-
-        function closeReceipt() { document.getElementById('receipt-container').classList.add('hidden'); }
 
         function renderReports() {
-            const month = document.getElementById('report-month').value;
-            const st = DB.getStudents();
-            const ld = DB.getLedger();
+            const filter = document.getElementById('report-class-filter').value;
+            const sts = DB.getStudents();
+            const ledger = DB.getLedger();
             const tbody = document.getElementById('report-table-body');
-            tbody.innerHTML = '';
-            st.filter(s => s.status === 'Active').forEach(s => {
-                const totalDue = ld.filter(l => l.studentId === s.id).reduce((sum, r) => sum + r.balance, 0);
-                if (totalDue > 0) tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4 font-medium">${s.name}</td><td class="px-6 py-4 text-slate-500">${s.fatherName}</td><td class="px-6 py-4 text-right font-bold text-rose-600">Rs ${totalDue}</td></tr>`;
+            let total = 0;
+
+            tbody.innerHTML = sts.filter(s => !filter || s.class === filter).map(s => {
+                const bal = ledger.filter(l => l.studentId === s.id).reduce((sum, r) => sum + (r.balance || 0), 0);
+                if(bal <= 0) return '';
+                total += bal;
+                return `<tr><td class="px-6 py-4 font-bold">${s.name}</td><td class="px-6 py-4 text-slate-500">${s.fatherName}</td><td class="px-6 py-4">${s.class}</td><td class="px-6 py-4 text-rose-600 font-bold">Rs ${bal}</td></tr>`;
+            }).join('');
+
+            document.getElementById('report-total-sum').innerText = "Rs " + total;
+        }
+
+        function exportToPDF() {
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                const settings = DB.getSettings();
+                const filter = document.getElementById('report-class-filter').value || 'All Classes';
+
+                doc.setFontSize(22);
+                doc.setTextColor(30, 64, 175);
+                doc.text(settings.name, 105, 20, { align: 'center' });
+                
+                doc.setFontSize(10);
+                doc.setTextColor(100, 116, 139);
+                doc.text(settings.address, 105, 27, { align: 'center' });
+                
+                doc.setDrawColor(200);
+                doc.line(20, 32, 190, 32);
+                
+                doc.setFontSize(14);
+                doc.setTextColor(0);
+                doc.text(`Defaulters Report - ${filter}`, 20, 42);
+
+                doc.autoTable({
+                    html: '#report-table',
+                    startY: 50,
+                    theme: 'grid',
+                    headStyles: { fillColor: [30, 41, 59] },
+                    footStyles: { fillColor: [241, 245, 249], textColor: [225, 29, 72] }
+                });
+
+                doc.save(`Defaulters_${filter}_${new Date().toLocaleDateString()}.pdf`);
+                showToast("PDF Saved");
+            } catch (err) {
+                console.error(err);
+                showToast("PDF Generation Failed!");
+            }
+        }
+
+        function applySettings() {
+            const s = DB.getSettings();
+            document.getElementById('sidebar-school-name').innerText = s.name;
+            document.getElementById('set-school-name').value = s.name;
+            document.getElementById('set-address').value = s.address;
+            document.getElementById('set-contact').value = s.contact;
+            if(s.logo) {
+                document.getElementById('sidebar-logo').innerHTML = `<img src="${s.logo}" class="w-full h-full object-cover">`;
+                document.getElementById('logo-preview').innerHTML = `<img src="${s.logo}" class="w-full h-full object-contain">`;
+            }
+        }
+
+        function handleLogoUpload(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('logo-preview').innerHTML = `<img src="${e.target.result}" class="w-full h-full object-contain">`;
+                    localStorage.setItem('ss_temp_logo', e.target.result);
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function saveSettings() {
+            const temp = localStorage.getItem('ss_temp_logo');
+            const s = {
+                name: document.getElementById('set-school-name').value,
+                address: document.getElementById('set-address').value,
+                contact: document.getElementById('set-contact').value,
+                logo: temp || DB.getSettings().logo
+            };
+            localStorage.setItem('ss_settings', JSON.stringify(s));
+            localStorage.removeItem('ss_temp_logo');
+            DB.updateUI();
+            showToast("Settings Saved");
+        }
+
+        function renderDashboard() {
+            const sts = DB.getStudents();
+            const ledger = DB.getLedger();
+            
+            // Statistics logic fix - using ledger aggregate for accuracy
+            const totalPayable = ledger.reduce((sum, l) => sum + (l.payable || 0), 0);
+            const totalCollected = ledger.reduce((sum, l) => sum + (l.paid || 0), 0);
+            const totalDues = ledger.reduce((sum, l) => sum + (l.balance || 0), 0);
+
+            document.getElementById('dash-total-students').innerText = sts.length;
+            document.getElementById('dash-total-collected').innerText = "Rs " + totalCollected.toLocaleString();
+            document.getElementById('dash-total-dues').innerText = "Rs " + totalDues.toLocaleString();
+            document.getElementById('dash-total-receivable').innerText = "Rs " + totalPayable.toLocaleString();
+
+            renderSixMonthAnalysis();
+        }
+
+        function renderSixMonthAnalysis() {
+            const txs = DB.getTransactions();
+            const analysisList = document.getElementById('monthly-analysis-list');
+            analysisList.innerHTML = '';
+            
+            const months = [];
+            for(let i=0; i<6; i++) {
+                const d = new Date();
+                d.setMonth(d.getMonth() - i);
+                months.push(d.toISOString().slice(0, 7));
+            }
+
+            months.forEach(m => {
+                const monthName = new Date(m).toLocaleString('default', { month: 'long', year: 'numeric' });
+                const monthCollection = txs.filter(t => t.month === m).reduce((sum, t) => sum + t.amount, 0);
+                
+                analysisList.innerHTML += `
+                    <div class="flex justify-between items-center p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded-xl transition-colors">
+                        <div>
+                            <p class="font-bold text-slate-700">${monthName}</p>
+                            <p class="text-[10px] text-slate-400 uppercase tracking-widest">Monthly Collection</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-black text-emerald-600">Rs ${monthCollection.toLocaleString()}</p>
+                            <div class="w-24 bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                                <div class="bg-emerald-500 h-full" style="width: ${Math.min((monthCollection/50000)*100, 100)}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
             });
         }
+
+        window.onload = () => { DB.init(); DB.updateUI(); switchTab('dashboard'); };
+
+        document.getElementById('student-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const success = DB.saveStudent({
+                id: document.getElementById('edit-id').value || null,
+                name: document.getElementById('st-name').value,
+                fatherName: document.getElementById('st-father').value,
+                class: document.getElementById('st-class').value,
+                fee: document.getElementById('st-fee').value
+            });
+            if(success) { toggleModal('student-modal'); showToast("Saved"); }
+        });
     </script>
 </body>
 </html>
